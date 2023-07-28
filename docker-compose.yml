@@ -1,0 +1,73 @@
+version: "3.7"
+
+volumes:
+  postgresql:
+
+services:
+  redis:
+    image: redis
+    networks:
+      - promonet 
+    ports:
+      - "127.0.0.1:6379:6379"
+    restart: always
+
+  postgres:
+    image: postgres:13.0
+    restart: always
+    networks:
+      - promonet 
+    environment:
+      POSTGRES_PASSWORD: databasePassword
+      POSTGRES_DB: test
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgresql:/var/lib/postgresql
+
+  promo-api:
+    build:
+      context: .
+      dockerfile: DockerfilePromoAPI
+    networks:
+      - promonet 
+    restart: always
+    environment:
+      SQL_DSN: postgresql://postgres:databasePassword@postgres/test?sslmode=disable
+      PROMO_CSVPATH: ${PROMO_CSVPATH}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - postgres
+
+  promo-scheduler:
+    build:
+      context: .
+      dockerfile: DockerfilePromoScheduler
+    networks:
+      - promonet 
+    environment:
+      SQL_DSN: postgresql://postgres:databasePassword@postgres/test?sslmode=disable
+      PROMO_CSVPATH: ${PROMO_CSVPATH}
+      REDIS_HOST: redis
+    depends_on:
+      - redis
+    restart: always
+
+  promo-workers:
+    build:
+      context: .
+      dockerfile: DockerfilePromoWorker
+    networks:
+      - promonet 
+    environment:
+      SQL_DSN: postgresql://postgres:databasePassword@postgres/test?sslmode=disable
+      PROMO_CSVPATH: ${PROMO_CSVPATH}
+      REDIS_HOST: redis
+    depends_on:
+      - postgres
+      - redis
+    restart: always
+  
+networks:
+  promonet:
